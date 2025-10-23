@@ -1,0 +1,3 @@
+linear-gradient(180deg,#f8fafc 0%,#eef2ff 100%)
+radial-gradient(circle at 30% 20%, #ffffff, #eef2ff 60%, #e2e8f0)
+linear-gradient(135deg,#fff1f2,#fecdd3)
