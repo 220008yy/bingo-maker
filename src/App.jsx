@@ -610,8 +610,23 @@ function BingoCard({
   subTitleSize,
 }) {
   const size = cellSize;
+  // ← 追加：点数バーの確保高（文字サイズ18px＋上下padding相当）
+  const scoreLinePx = showScore ? Math.round(18 * fontScale) + 16 : 0;
+
+  // ← 追加：セルを2行グリッド（上：画像エリア / 下：点数バー）
+  const cellGridStyle = {
+    width: size,
+    height: size,
+    display: "grid",
+    gridTemplateRows: `${size - scoreLinePx}px ${scoreLinePx}px`,
+  };
+
+  // 画像の最大サイズ（画像エリアの内側paddingぶんを差し引き）
+  const imgAreaMax = size - scoreLinePx - 16; // p-3 相当
+  const imgPx = Math.min(Math.round(cellSize * (imgScale ?? 0.8)), imgAreaMax);
+
   const cardStyle = { background: bg, width: size * 5 + 80 };
-  const imgPx = Math.round(cellSize * (imgScale != null ? imgScale : 0.8));
+
   return (
     <div
       ref={refEl}
@@ -650,12 +665,13 @@ function BingoCard({
             return (
               <div
                 key={i}
-                className="relative rounded-xl bg-white shadow-sm border border-slate-200 flex flex-col items-center justify-between overflow-hidden"
-                style={{ width: cellSize, height: cellSize }}
+                className="relative rounded-xl bg-white shadow-sm border border-slate-200 overflow-hidden"
+                style={cellGridStyle}
               >
+                {/* 画像エリア（上段） */}
                 <button
                   onClick={() => onCellClick?.(i)}
-                  className="w-full h-full flex items-center justify-center p-3"
+                  className="flex items-center justify-center p-3 overflow-hidden"
                 >
                   {it?.img ? (
                     <img
@@ -664,7 +680,7 @@ function BingoCard({
                       style={{
                         width: imgPx,
                         height: imgPx,
-                        objectFit: fitMode || "contain", // "contain" or "cover"
+                        objectFit: fitMode || "contain",
                         borderRadius: roundImg ? 16 : 0,
                       }}
                     />
@@ -672,9 +688,11 @@ function BingoCard({
                     <span className="text-slate-300">クリックで配置</span>
                   )}
                 </button>
+
+                {/* 点数バー（下段） */}
                 {showScore && (
                   <div
-                    className="w-full text-center font-bold leading-none py-2 border-t border-slate-200"
+                    className="w-full text-center font-bold leading-none border-t border-slate-200 flex items-center justify-center"
                     style={{
                       fontSize: `${18 * fontScale}px`,
                       color: titleColor,
@@ -683,6 +701,7 @@ function BingoCard({
                     {it?.score ?? ""}
                   </div>
                 )}
+
                 <button
                   onClick={() => onCellClear?.(i)}
                   className="absolute -right-2 -top-2 bg-white/90 border border-slate-300 rounded-full text-xs px-1.5"
