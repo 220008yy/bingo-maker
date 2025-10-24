@@ -263,7 +263,13 @@ export default function BingoMaker() {
 
   const savePng = async () => {
     if (!bingoRef.current) return;
-    const url = await toPng(bingoRef.current, { pixelRatio: 2 });
+    const url = await toPng(bingoRef.current, {
+      pixelRatio: 2,
+      cacheBust: true,
+      // ← 追加：no-export クラスが付いた要素は描画しない
+      filter: (node) =>
+        !(node.classList && node.classList.contains("no-export")),
+    });
     const a = document.createElement("a");
     a.href = url;
     a.download = "bingo.png";
@@ -671,7 +677,7 @@ function BingoCard({
                 {/* 画像エリア（上段） */}
                 <button
                   onClick={() => onCellClick?.(i)}
-                  className="flex items-center justify-center p-3 overflow-hidden"
+                  className="absolute -right-2 -top-2 bg-white/90 border border-slate-300 rounded-full text-xs px-1.5 no-export"
                 >
                   {it?.img ? (
                     <img
