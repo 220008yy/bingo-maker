@@ -678,7 +678,7 @@ function BingoCard({
                 {/* 画像エリア（上段） */}
                 <button
                   onClick={() => onCellClick?.(i)}
-                  className="absolute -right-2 -top-2 bg-white/90 border border-slate-300 rounded-full text-xs px-1.5 no-export"
+                  className="flex items-center justify-center p-3 overflow-hidden"
                 >
                   {it?.img ? (
                     <img
@@ -688,7 +688,7 @@ function BingoCard({
                         width: imgPx,
                         height: imgPx,
                         objectFit: fitMode || "contain",
-                        borderRadius: roundImg ? 16 : 0,
+                        borderRadius: roundImg ? 16 : 0, // 角丸OFFにしたい時はUIで切替
                       }}
                     />
                   ) : (
@@ -709,9 +709,10 @@ function BingoCard({
                   </div>
                 )}
 
+                {/* 右上の×（← ここだけ no-export を付ける） */}
                 <button
                   onClick={() => onCellClear?.(i)}
-                  className="absolute -right-2 -top-2 bg-white/90 border border-slate-300 rounded-full text-xs px-1.5"
+                  className="absolute -right-2 -top-2 bg-white/90 border border-slate-300 rounded-full text-xs px-1.5 no-export"
                 >
                   ×
                 </button>
