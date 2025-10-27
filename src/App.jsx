@@ -263,7 +263,12 @@ export default function BingoMaker() {
 
   const savePng = async () => {
     if (!bingoRef.current) return;
-    const url = await toPng(bingoRef.current, { pixelRatio: 2 });
+    const url = await toPng(bingoRef.current, {
+      pixelRatio: 2,
+      cacheBust: true,
+      filter: (node) =>
+        !(node.classList && node.classList.contains("no-export")),
+    });
     const a = document.createElement("a");
     a.href = url;
     a.download = "bingo.png";
@@ -610,7 +615,7 @@ function BingoCard({
   subTitleSize,
 }) {
   const size = cellSize;
-  // ← 追加：点数バーの確保高（文字サイズ18px＋上下padding相当）
+  const hasScore = !!showScore;
   const scoreLinePx = showScore ? Math.round(18 * fontScale) + 16 : 0;
 
   // ← 追加：セルを2行グリッド（上：画像エリア / 下：点数バー）
@@ -618,11 +623,13 @@ function BingoCard({
     width: size,
     height: size,
     display: "grid",
-    gridTemplateRows: `${size - scoreLinePx}px ${scoreLinePx}px`,
+    gridTemplateRows: hasScore
+      ? `${size - scoreLinePx}px ${scoreLinePx}px`
+      : `${size}px`, // スコア非表示なら1行
   };
 
   // 画像の最大サイズ（画像エリアの内側paddingぶんを差し引き）
-  const imgAreaMax = size - scoreLinePx - 16; // p-3 相当
+  const imgAreaMax = size - scoreLinePx - 16;
   const imgPx = Math.min(Math.round(cellSize * (imgScale ?? 0.8)), imgAreaMax);
 
   const cardStyle = { background: bg, width: size * 5 + 80 };
@@ -681,7 +688,7 @@ function BingoCard({
                         width: imgPx,
                         height: imgPx,
                         objectFit: fitMode || "contain",
-                        borderRadius: roundImg ? 16 : 0,
+                        borderRadius: roundImg ? 16 : 0, // 角丸OFFにしたい時はUIで切替
                       }}
                     />
                   ) : (
@@ -702,9 +709,10 @@ function BingoCard({
                   </div>
                 )}
 
+                {/* 右上の×（← ここだけ no-export を付ける） */}
                 <button
                   onClick={() => onCellClear?.(i)}
-                  className="absolute -right-2 -top-2 bg-white/90 border border-slate-300 rounded-full text-xs px-1.5"
+                  className="absolute -right-2 -top-2 bg-white/90 border border-slate-300 rounded-full text-xs px-1.5 no-export"
                 >
                   ×
                 </button>
@@ -713,7 +721,7 @@ function BingoCard({
           })}
       </div>
       <div className="text-center text-xs text-slate-500 mt-3">
-        Generated with BingoMaker
+        BingoMaker with team y
       </div>
     </div>
   );
