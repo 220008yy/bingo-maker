@@ -2,7 +2,9 @@ import React, { useMemo, useRef, useState, useEffect } from "react";
 import { toPng } from "html-to-image";
 
 // Vite の公開環境変数。未設定なら空文字
-  const CSV_URL = import.meta.env.VITE_CSV_URL || "https://docs.google.com/spreadsheets/d/e/2PACX-1vS8pNlLicJUxrBmaemHVE_5C-Eq5d6JLoRZnVU16n2Cguxk6vw-ZJZ_E8A5wzpRMFgAVoa8_MVoCObH/pub?output=csv";
+const CSV_URL =
+  import.meta.env.VITE_CSV_URL ||
+  "https://docs.google.com/spreadsheets/d/e/2PACX-1vS8pNlLicJUxrBmaemHVE_5C-Eq5d6JLoRZnVU16n2Cguxk6vw-ZJZ_E8A5wzpRMFgAVoa8_MVoCObH/pub?output=csv";
 
 /**
  * ビンゴカード自動生成（ギャラリー選択 & クリック配置 対応版）
@@ -274,224 +276,237 @@ export default function BingoMaker() {
         </header>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* 設定（運営のみ表示） */}
-          {isDev && (
-            <section className="grid gap-3">
-              <label className="text-sm font-semibold">
-                CSV（画像URL,点数,ラベル）
-              </label>
-              <label className="px-2 py-2 text-xs flex items-center gap-2 border rounded-xl">
-                <input
-                  type="checkbox"
-                  checked={useRemote}
-                  onChange={(e) => setUseRemote(e.target.checked)}
+          {/* 設定（CSVだけ運営向け、他は常時表示） */}
+          <section className="grid gap-3">
+            {/* ▼▼▼ ここ（CSV関連ブロック）だけ isDev で隠す ▼▼▼ */}
+            {isDev && (
+              <div className="grid gap-3">
+                <label className="text-sm font-semibold">
+                  CSV（画像URL,点数,ラベル）
+                </label>
+
+                {/* 外部CSVモードトグル（運営だけ） */}
+                <label className="px-2 py-2 text-xs flex items-center gap-2 border rounded-xl">
+                  <input
+                    type="checkbox"
+                    checked={useRemote}
+                    onChange={(e) => setUseRemote(e.target.checked)}
+                  />
+                  外部CSVモード
+                </label>
+
+                {/* 手動CSVテキストエリア（運営だけ） */}
+                <textarea
+                  value={csv}
+                  onChange={(e) => setCsv(e.target.value)}
+                  className="min-h-[220px] w-full rounded-xl border border-slate-300 p-3 font-mono text-sm"
+                  placeholder="https://example/icon.png,500,ラベル"
                 />
-                外部CSVモード
-              </label>
-
-              <textarea
-                value={csv}
-                onChange={(e) => setCsv(e.target.value)}
-                className="min-h-[220px] w-full rounded-xl border border-slate-300 p-3 font-mono text-sm"
-                placeholder="https://example/icon.png,500,ラベル"
-              />
-              <div className="grid grid-cols-2 gap-3">
-                <div className="grid gap-1">
-                  <label className="text-xs font-semibold">BINGO文字色</label>
-                  <input
-                    type="color"
-                    value={titleColor}
-                    onChange={(e) => setTitleColor(e.target.value)}
-                    className="h-9 w-16 p-1 rounded-md border border-slate-300"
-                  />
-                </div>
-                <div className="grid gap-1">
-                  <label className="text-xs font-semibold">サブタイトル</label>
-                  <input
-                    value={subTitle}
-                    onChange={(e) => setSubTitle(e.target.value)}
-                    className="rounded-xl border border-slate-300 p-2"
-                  />
-                </div>
-                <div className="grid gap-1">
-                  <label className="text-xs font-semibold">
-                    サブタイトル色
-                  </label>
-                  <input
-                    type="color"
-                    value={subTitleColor}
-                    onChange={(e) => setSubTitleColor(e.target.value)}
-                    className="h-9 w-16 p-1 rounded-md border border-slate-300"
-                  />
-                </div>
-
-                <div className="grid gap-1">
-                  <label className="text-xs font-semibold">
-                    サブタイトル文字サイズ（px）
-                  </label>
-                  <input
-                    type="number"
-                    min={8}
-                    max={64}
-                    value={subTitleSize}
-                    onChange={(e) => setSubTitleSize(Number(e.target.value))}
-                    className="rounded-xl border border-slate-300 p-2"
-                  />
-                </div>
-
-                <div className="grid gap-1">
-                  <label className="text-xs font-semibold">
-                    セルの一辺(px)
-                  </label>
-                  <input
-                    type="number"
-                    min={120}
-                    max={360}
-                    value={cellSize}
-                    onChange={(e) => setCellSize(Number(e.target.value))}
-                    className="rounded-xl border border-slate-300 p-2"
-                  />
-                </div>
-                <div className="grid gap-1">
-                  <label className="text-xs font-semibold">
-                    マス間隔（px）
-                  </label>
-                  <input
-                    type="number"
-                    min={0}
-                    max={48}
-                    value={gridGap}
-                    onChange={(e) => setGridGap(Number(e.target.value))}
-                    className="rounded-xl border border-slate-300 p-2"
-                  />
-                </div>
-
-                <div className="grid gap-1">
-                  <label className="text-xs font-semibold">点数を表示</label>
-                  <select
-                    value={showScore ? "on" : "off"}
-                    onChange={(e) => setShowScore(e.target.value === "on")}
-                    className="rounded-xl border border-slate-300 p-2"
-                  >
-                    <option value="on">表示する</option>
-                    <option value="off">表示しない</option>
-                  </select>
-                </div>
-                <div className="grid gap-1">
-                  <label className="text-xs font-semibold">画像の角丸</label>
-                  <select
-                    value={roundImg ? "on" : "off"}
-                    onChange={(e) => setRoundImg(e.target.value === "on")}
-                    className="rounded-xl border border-slate-300 p-2"
-                  >
-                    <option value="on">角丸</option>
-                    <option value="off">四角</option>
-                  </select>
-                </div>
-                <div className="grid gap-1">
-                  <label className="text-xs font-semibold">
-                    重複を許可しない
-                  </label>
-                  <select
-                    value={useUnique ? "on" : "off"}
-                    onChange={(e) => setUseUnique(e.target.value === "on")}
-                    className="rounded-xl border border-slate-300 p-2"
-                  >
-                    <option value="off">許可する</option>
-                    <option value="on">許可しない</option>
-                  </select>
-                </div>
-                <div className="grid gap-1">
-                  <label className="text-xs font-semibold">フォント倍率</label>
-                  <input
-                    type="number"
-                    step={0.1}
-                    min={0.6}
-                    max={2}
-                    value={fontScale}
-                    onChange={(e) => setFontScale(Number(e.target.value))}
-                    className="rounded-xl border border-slate-300 p-2"
-                  />
-                </div>
-                <div className="grid gap-1">
-                  <label className="text-xs font-semibold">
-                    画像サイズ（セル比）
-                  </label>
-                  <input
-                    type="range"
-                    min={0.6}
-                    max={1}
-                    step={0.05}
-                    value={imgScale}
-                    onChange={(e) => setImgScale(Number(e.target.value))}
-                  />
-                  <div className="text-[11px] text-slate-500">
-                    {Math.round(imgScale * 100)}%
-                  </div>
-                </div>
-                <div className="grid gap-1">
-                  <label className="text-xs font-semibold">
-                    ランダムのスコア上限（空で無制限）
-                  </label>
-                  <input
-                    type="number"
-                    min={0}
-                    placeholder="例: 10000"
-                    value={maxScore ?? ""}
-                    onChange={(e) => {
-                      const v = e.target.value.trim();
-                      setMaxScore(v === "" ? null : Number(v));
-                    }}
-                    className="rounded-xl border border-slate-300 p-2"
-                  />
-                </div>
-                <div className="grid gap-1">
-                  <label className="text-xs font-semibold">
-                    画像のフィット
-                  </label>
-                  <select
-                    value={fitMode}
-                    onChange={(e) => setFitMode(e.target.value)}
-                    className="rounded-xl border border-slate-300 p-2"
-                  >
-                    <option value="contain">余白あり（全部見せる）</option>
-                    <option value="cover">トリミングしてピッタリ</option>
-                  </select>
-                </div>
               </div>
-              <div className="grid gap-2">
-                <label className="text-xs font-semibold">
-                  背景（プリセット）
-                </label>
-                <div className="flex flex-wrap gap-2">
-                  {PRESET_BACKGROUNDS.map((p) => (
-                    <button
-                      key={p.name}
-                      className={`px-3 py-1.5 rounded-full border ${
-                        bg === p.css ? "border-indigo-600" : "border-slate-300"
-                      }`}
-                      style={{ background: p.css }}
-                      onClick={() => setBg(p.css)}
-                    >
-                      <span className="backdrop-blur-sm text-slate-800 text-xs font-semibold">
-                        {p.name}
-                      </span>
-                    </button>
-                  ))}
-                </div>
+            )}
+            {/* ▲▲▲ CSV関連はここまで（ユーザーから隠れる） ▲▲▲ */}
 
-                <label className="text-xs font-semibold mt-2">
-                  背景（CSS手入力）
-                </label>
+            {/* ここから下の“色/スライダー/ドロップダウン”は常に表示 */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="grid gap-1">
+                <label className="text-xs font-semibold">BINGO文字色</label>
                 <input
-                  value={bgCustom}
-                  onChange={(e) => setBgCustom(e.target.value)}
+                  type="color"
+                  value={titleColor}
+                  onChange={(e) => setTitleColor(e.target.value)}
+                  className="h-9 w-16 p-1 rounded-md border border-slate-300"
+                />
+              </div>
+
+              <div className="grid gap-1">
+                <label className="text-xs font-semibold">サブタイトル</label>
+                <input
+                  value={subTitle}
+                  onChange={(e) => setSubTitle(e.target.value)}
                   className="rounded-xl border border-slate-300 p-2"
-                  placeholder="linear-gradient(135deg,#fff,#f0f4ff)"
                 />
               </div>
-            </section>
-          )}
+
+              <div className="grid gap-1">
+                <label className="text-xs font-semibold">サブタイトル色</label>
+                <input
+                  type="color"
+                  value={subTitleColor}
+                  onChange={(e) => setSubTitleColor(e.target.value)}
+                  className="h-9 w-16 p-1 rounded-md border border-slate-300"
+                />
+              </div>
+
+              <div className="grid gap-1">
+                <label className="text-xs font-semibold">
+                  サブタイトル文字サイズ（px）
+                </label>
+                <input
+                  type="number"
+                  min={8}
+                  max={64}
+                  value={subTitleSize}
+                  onChange={(e) => setSubTitleSize(Number(e.target.value))}
+                  className="rounded-xl border border-slate-300 p-2"
+                />
+              </div>
+
+              <div className="grid gap-1">
+                <label className="text-xs font-semibold">
+                  セルの一辺（px）
+                </label>
+                <input
+                  type="number"
+                  min={120}
+                  max={360}
+                  value={cellSize}
+                  onChange={(e) => setCellSize(Number(e.target.value))}
+                  className="rounded-xl border border-slate-300 p-2"
+                />
+              </div>
+
+              <div className="grid gap-1">
+                <label className="text-xs font-semibold">マス間隔（px）</label>
+                <input
+                  type="number"
+                  min={0}
+                  max={48}
+                  value={gridGap}
+                  onChange={(e) => setGridGap(Number(e.target.value))}
+                  className="rounded-xl border border-slate-300 p-2"
+                />
+              </div>
+
+              <div className="grid gap-1">
+                <label className="text-xs font-semibold">点数を表示</label>
+                <select
+                  value={showScore ? "on" : "off"}
+                  onChange={(e) => setShowScore(e.target.value === "on")}
+                  className="rounded-xl border border-slate-300 p-2"
+                >
+                  <option value="on">表示する</option>
+                  <option value="off">表示しない</option>
+                </select>
+              </div>
+
+              <div className="grid gap-1">
+                <label className="text-xs font-semibold">画像の角丸</label>
+                <select
+                  value={roundImg ? "on" : "off"}
+                  onChange={(e) => setRoundImg(e.target.value === "on")}
+                  className="rounded-xl border border-slate-300 p-2"
+                >
+                  <option value="on">角丸</option>
+                  <option value="off">四角</option>
+                </select>
+              </div>
+
+              <div className="grid gap-1">
+                <label className="text-xs font-semibold">
+                  重複を許可しない
+                </label>
+                <select
+                  value={useUnique ? "on" : "off"}
+                  onChange={(e) => setUseUnique(e.target.value === "on")}
+                  className="rounded-xl border border-slate-300 p-2"
+                >
+                  <option value="off">許可する</option>
+                  <option value="on">許可しない</option>
+                </select>
+              </div>
+
+              <div className="grid gap-1">
+                <label className="text-xs font-semibold">フォント倍率</label>
+                <input
+                  type="number"
+                  step={0.1}
+                  min={0.6}
+                  max={2}
+                  value={fontScale}
+                  onChange={(e) => setFontScale(Number(e.target.value))}
+                  className="rounded-xl border border-slate-300 p-2"
+                />
+              </div>
+
+              <div className="grid gap-1">
+                <label className="text-xs font-semibold">
+                  画像サイズ（セル比）
+                </label>
+                <input
+                  type="range"
+                  min={0.6}
+                  max={1}
+                  step={0.05}
+                  value={imgScale}
+                  onChange={(e) => setImgScale(Number(e.target.value))}
+                />
+                <div className="text-[11px] text-slate-500">
+                  {Math.round(imgScale * 100)}%
+                </div>
+              </div>
+
+              <div className="grid gap-1">
+                <label className="text-xs font-semibold">
+                  ランダムのスコア上限（空で無制限）
+                </label>
+                <input
+                  type="number"
+                  min={0}
+                  placeholder="例: 10000"
+                  value={maxScore ?? ""}
+                  onChange={(e) => {
+                    const v = e.target.value.trim();
+                    setMaxScore(v === "" ? null : Number(v));
+                  }}
+                  className="rounded-xl border border-slate-300 p-2"
+                />
+              </div>
+
+              <div className="grid gap-1">
+                <label className="text-xs font-semibold">画像のフィット</label>
+                <select
+                  value={fitMode}
+                  onChange={(e) => setFitMode(e.target.value)}
+                  className="rounded-xl border border-slate-300 p-2"
+                >
+                  <option value="contain">余白あり（全部見せる）</option>
+                  <option value="cover">トリミングしてピッタリ</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="grid gap-2">
+              <label className="text-xs font-semibold">
+                背景（プリセット）
+              </label>
+              <div className="flex flex-wrap gap-2">
+                {PRESET_BACKGROUNDS.map((p) => (
+                  <button
+                    key={p.name}
+                    className={`px-3 py-1.5 rounded-full border ${
+                      bg === p.css ? "border-indigo-600" : "border-slate-300"
+                    }`}
+                    style={{ background: p.css }}
+                    onClick={() => setBg(p.css)}
+                  >
+                    <span className="backdrop-blur-sm text-slate-800 text-xs font-semibold">
+                      {p.name}
+                    </span>
+                  </button>
+                ))}
+              </div>
+
+              <label className="text-xs font-semibold mt-2">
+                背景（CSS手入力）
+              </label>
+              <input
+                value={bgCustom}
+                onChange={(e) => setBgCustom(e.target.value)}
+                className="rounded-xl border border-slate-300 p-2"
+                placeholder="linear-gradient(135deg,#fff,#f0f4ff)"
+              />
+            </div>
+          </section>
 
           {/* ギャラリー */}
           <section className="grid gap-3">
@@ -537,12 +552,13 @@ export default function BingoMaker() {
               ))}
               {items.length === 0 && (
                 <div className="text-slate-500 text-sm">
-                  CSVを入力すると一覧が表示されます。
+                  {useRemote
+                    ? "公開中のアイテムがまだありません。"
+                    : "CSVを入力すると一覧が表示されます。"}
                 </div>
               )}
             </div>
           </section>
-
           {/* プレビュー / 盤面 */}
           <section className="grid gap-3">
             <h2 className="text-sm font-semibold">
