@@ -1,5 +1,32 @@
-import React, { useMemo, useRef, useState, useEffect } from "react";
+import React, {
+  useMemo,
+  useRef,
+  useState,
+  useEffect,
+  useLayoutEffect,
+} from "react";
 import { toPng } from "html-to-image";
+
+function useContainerWidth(ref, fallback = 1200) {
+  const [w, setW] = useState(fallback);
+
+  useLayoutEffect(() => {
+    if (!ref.current) return;
+    const el = ref.current;
+
+    const update = () => {
+      const rect = el.getBoundingClientRect();
+      setW(rect.width);
+    };
+
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [ref]);
+
+  return w;
+}
 
 // Vite の公開環境変数。未設定なら空文字
 const CSV_URL =
@@ -217,32 +244,93 @@ export default function BingoMaker() {
     } else {
       // 重複あり：ランダムに25個
       for (let i = 0; i < 25; i++) {
-        filled.push(pool[i % pool.length]);
+        filled.push(pool[Math.floor(Math.random() * pool.length)]);
       }
     }
 
     setBoard(filled);
   };
+  // iOS / iOS版Chrome(CriOS) 判定（ビルド/SSR対策のガード付き）
+  const ua = typeof navigator !== "undefined" ? navigator.userAgent : "";
+  const isIOS = /iP(hone|ad|od)/.test(ua);
+  const isIOSChrome = /\bCriOS\//.test(ua);
 
   const savePng = async () => {
     if (!bingoRef.current) return;
-    const url = await toPng(bingoRef.current, {
+
+    // iOSのポップアップブロック対策：先に空タブを開いておく
+    let preOpenedWin = null;
+    if (isIOS || isIOSChrome) {
+      preOpenedWin = window.open("", "_blank");
+    }
+
+    const dataUrl = await toPng(bingoRef.current, {
       pixelRatio: 2,
       cacheBust: true,
       filter: (node) =>
         !(node.classList && node.classList.contains("no-export")),
     });
+
+    // まずは Web Share Level 2（ファイル共有）が使えるならそれで保存
+    try {
+      const blob = await (await fetch(dataUrl)).blob();
+      const file = new File([blob], "bingo.png", { type: "image/png" });
+
+      // 型チェック回避しつつ実体で判定
+      /** @type {any} */ const nav = navigator;
+
+      if (
+        typeof nav.share === "function" &&
+        typeof nav.canShare === "function" &&
+        nav.canShare({ files: [file] })
+      ) {
+        await nav.share({ files: [file], title: "Bingo" });
+        if (preOpenedWin && !preOpenedWin.closed) preOpenedWin.close();
+        return;
+      }
+    } catch {
+      // 共有できなければ下のフォールバックへ
+    }
+
+    // iOS系は <a download> が効かないことがある → 新規タブで開いて長押し保存してもらう
+    if (isIOS || isIOSChrome) {
+      const w = preOpenedWin || window.open("", "_blank");
+      if (w) {
+        w.document.write(`
+        <html><head>
+          <meta name="viewport" content="width=device-width,initial-scale=1">
+          <title>画像を保存</title>
+          <style>
+            body{margin:0;background:#111;display:flex;align-items:center;justify-content:center;min-height:100vh}
+            img{max-width:100%;height:auto}
+            .hint{position:fixed;left:0;right:0;bottom:12px;color:#fff;text-align:center;font:14px -apple-system,system-ui,Segoe UI}
+          </style>
+        </head>
+        <body>
+          <img id="img" alt="bingo"/>
+          <div class="hint">画像を<strong>長押し</strong>→「写真に追加」で保存</div>
+          <script>document.getElementById('img').src='${dataUrl}';</script>
+        </body></html>
+      `);
+        w.document.close();
+        return;
+      }
+    }
+
+    // それ以外のブラウザは通常のダウンロードが有効
     const a = document.createElement("a");
-    a.href = url;
+    a.href = dataUrl;
     a.download = "bingo.png";
+    document.body.appendChild(a);
     a.click();
+    a.remove();
   };
 
   const bgCss = bgCustom?.trim() ? bgCustom : bg;
 
   return (
     <div className="min-h-screen p-6 md:p-10 bg-slate-50 text-slate-900">
-      <div className="max-w-7xl mx-auto grid gap-6">
+      <div className="max-w-5xl mx-auto grid gap-6 px-3 place-items-center">
         <header className="flex flex-col md:flex-row items-start md:items-end gap-4 md:gap-6">
           <div>
             <h1 className="text-2xl md:text-3xl font-bold">
@@ -275,7 +363,7 @@ export default function BingoMaker() {
           </div>
         </header>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 place-items-center">
           {/* 設定（CSVだけ運営向け、他は常時表示） */}
           <section className="grid gap-3">
             {/* ▼▼▼ ここ（CSV関連ブロック）だけ isDev で隠す ▼▼▼ */}
@@ -516,7 +604,7 @@ export default function BingoMaker() {
               </h2>
               <div className="text-xs text-slate-500">{items.length}件</div>
             </div>
-            <div className="grid grid-cols-3 md:grid-cols-4 gap-3 max-h-[520px] overflow-auto pr-1">
+            <div className="grid grid-cols-3 md:grid-cols-4 gap-3 max-h-[520px] overflow-auto pr-1 justify-items-center">
               {items.map((it, i) => (
                 <button
                   key={it.id}
@@ -609,36 +697,69 @@ function BingoCard({
   subTitleColor,
   subTitleSize,
 }) {
-  const size = cellSize;
+  // BingoCard 冒頭に追加：盤面ラッパ参照
+  const wrapRef = useRef(null);
+
+  // ラッパ実幅を取得（ウィンドウ幅じゃなく実際の列幅）
+  const wrapW = useContainerWidth(wrapRef, 1200);
+
+  const columns = 5;
+
+  // 盤面内側の padding（p-3 ≒ 12px）
+  const innerPadding = 12;
+
+  // グリッドが使える実効幅
+  const gridAreaWidth = Math.max(0, wrapW - innerPadding * 2);
+
+  // 1セルの候補（gapも考慮）
+  const sizeCandidate = (gridAreaWidth - gridGap * (columns - 1)) / columns;
+
+  // 小さくなり過ぎ防止の下限（お好みで調整）
+  const MIN_CELL = 110;
+  // ユーザー指定 cellSize を上限に、最小値は MIN_CELL を保証
+  const size = Math.floor(
+    Math.max(MIN_CELL, Math.min(cellSize, sizeCandidate))
+  );
+
   const hasScore = !!showScore;
   const scoreLinePx = showScore ? Math.round(18 * fontScale) + 16 : 0;
 
-  // ← 追加：セルを2行グリッド（上：画像エリア / 下：点数バー）
   const cellGridStyle = {
     width: size,
     height: size,
     display: "grid",
     gridTemplateRows: hasScore
       ? `${size - scoreLinePx}px ${scoreLinePx}px`
-      : `${size}px`, // スコア非表示なら1行
+      : `${size}px`,
   };
 
-  // 画像の最大サイズ（画像エリアの内側paddingぶんを差し引き）
   const imgAreaMax = size - scoreLinePx - 16;
-  const imgPx = Math.min(Math.round(cellSize * (imgScale ?? 0.8)), imgAreaMax);
+  const imgPx = Math.min(Math.round(size * (imgScale ?? 0.8)), imgAreaMax);
 
-  const cardStyle = { background: bg, width: size * 5 + 80 };
+  // 収まり優先：横は100%、ただし上限は「盤面がちょうど収まる幅」
+  const cardStyle = {
+    background: bg,
+    width: "100%",
+    maxWidth: size * 5 + 80, // px
+  };
 
+  // タイトルも大きすぎないようクランプ
+  const titlePx = Math.min(64 * fontScale, Math.floor(size * 0.9));
+
+  const setRefs = (node) => {
+    if (wrapRef) wrapRef.current = node;
+    if (refEl) refEl.current = node; // 画像書き出し用の参照も生かす
+  };
   return (
     <div
-      ref={refEl}
+      ref={setRefs}
       className="rounded-2xl shadow-lg border border-slate-200 p-6 bg-white/70 mx-auto"
       style={cardStyle}
     >
       <div className="text-center mb-4">
         <div
           className="font-extrabold drop-shadow-sm tracking-widest"
-          style={{ fontSize: `${64 * fontScale}px`, color: titleColor }}
+          style={{ fontSize: `${titlePx}px`, color: titleColor }}
         >
           {title}
         </div>
@@ -657,7 +778,7 @@ function BingoCard({
       </div>
 
       <div
-        className="grid grid-cols-5 bg-white/30 rounded-xl p-3"
+        className="grid grid-cols-5 bg-white/30 rounded-xl p-3 overflow-x-auto"
         style={{ gap: gridGap }}
       >
         {Array(25)
