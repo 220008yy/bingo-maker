@@ -193,7 +193,8 @@ export default function BingoMaker() {
   const emptyBoard = useMemo(() => Array(25).fill(null), []);
   const [board, setBoard] = useState(emptyBoard);
 
-  const bingoRef = useRef(null);
+  const bingoRef = useRef(null); // 表示用（今まで通り）
+  const exportRef = useRef(null); // 書き出し専用
 
   const placeAt = (idx) => {
     if (selected == null) return;
@@ -256,7 +257,7 @@ export default function BingoMaker() {
   const isIOSChrome = /\bCriOS\//.test(ua);
 
   const savePng = async () => {
-    if (!bingoRef.current) return;
+    if (!exportRef.current) return; // ← 書き出し専用を使う
 
     // iOSのポップアップブロック対策：先に空タブを開いておく
     let preOpenedWin = null;
@@ -264,9 +265,10 @@ export default function BingoMaker() {
       preOpenedWin = window.open("", "_blank");
     }
 
-    const dataUrl = await toPng(bingoRef.current, {
+    const dataUrl = await toPng(exportRef.current, {
       pixelRatio: 2,
       cacheBust: true,
+      backgroundColor: "#fff", // 透過で色抜けするのを防止
       filter: (node) =>
         !(node.classList && node.classList.contains("no-export")),
     });
@@ -672,6 +674,37 @@ export default function BingoMaker() {
               subTitleSize={subTitleSize}
             />
           </section>
+          {/* --- 書き出し専用の隠しカード（オフスクリーン） --- */}
+          <div
+            style={{
+              position: "fixed",
+              top: -10000,
+              left: -10000,
+              pointerEvents: "none",
+              opacity: 0,
+            }}
+          >
+            <BingoCard
+              refEl={exportRef}
+              items={board}
+              title={title}
+              subTitle={subTitle}
+              cellSize={cellSize} // 書き出しは固定サイズ
+              showScore={showScore}
+              roundImg={roundImg}
+              fontScale={fontScale}
+              bg={bgCustom?.trim() ? bgCustom : bg}
+              onCellClick={null}
+              onCellClear={null}
+              imgScale={imgScale}
+              fitMode={fitMode}
+              titleColor={titleColor}
+              gridGap={gridGap}
+              subTitleColor={subTitleColor}
+              subTitleSize={subTitleSize}
+              exportMode={true} // ← これで固定レイアウトに切替
+            />
+          </div>
         </div>
       </div>
     </div>
@@ -696,31 +729,36 @@ function BingoCard({
   gridGap,
   subTitleColor,
   subTitleSize,
+  exportMode = false,
 }) {
   // BingoCard 冒頭に追加：盤面ラッパ参照
   const wrapRef = useRef(null);
 
-  // ラッパ実幅を取得（ウィンドウ幅じゃなく実際の列幅）
-  const wrapW = useContainerWidth(wrapRef, 1200);
+  // ✅ Hookは無条件で先に呼ぶ
+  const measuredW = useContainerWidth(wrapRef, 1200);
+  // 条件分岐は Hookの“結果”に対して行う
+  const wrapW = exportMode ? cellSize * 5 + 80 : measuredW;
 
   const columns = 5;
 
   // 盤面内側の padding（p-3 ≒ 12px）
   const innerPadding = 12;
 
-  // グリッドが使える実効幅
-  const gridAreaWidth = Math.max(0, wrapW - innerPadding * 2);
+  // exportMode: レスポンシブの影響を受けず、指定cellSizeをそのまま採用
+  let size;
+  if (exportMode) {
+    size = cellSize;
+  } else {
+    const gridAreaWidth = Math.max(0, wrapW - innerPadding * 2);
 
-  // 1セルの候補（gapも考慮）
-  const sizeCandidate = (gridAreaWidth - gridGap * (columns - 1)) / columns;
+    // 1セルの候補（gapも考慮）
+    const sizeCandidate = (gridAreaWidth - gridGap * (columns - 1)) / columns;
 
-  // 小さくなり過ぎ防止の下限（お好みで調整）
-  const MIN_CELL = 110;
-  // ユーザー指定 cellSize を上限に、最小値は MIN_CELL を保証
-  const size = Math.floor(
-    Math.max(MIN_CELL, Math.min(cellSize, sizeCandidate))
-  );
-
+    // 小さくなり過ぎ防止の下限（お好みで調整）
+    const MIN_CELL = 110;
+    // ユーザー指定 cellSize を上限に、最小値は MIN_CELL を保証
+    size = Math.floor(Math.max(MIN_CELL, Math.min(cellSize, sizeCandidate)));
+  }
   const hasScore = !!showScore;
   const scoreLinePx = showScore ? Math.round(18 * fontScale) + 16 : 0;
 
