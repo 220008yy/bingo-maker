@@ -5,7 +5,7 @@ import React, {
   useEffect,
   useLayoutEffect,
 } from "react";
-import { toPng } from "html-to-image";
+import { toPng, toBlob } from "html-to-image";
 
 function useContainerWidth(ref, fallback = 1200) {
   const [w, setW] = useState(fallback);
@@ -257,75 +257,51 @@ export default function BingoMaker() {
   const isIOSChrome = /\bCriOS\//.test(ua);
 
   const savePng = async () => {
-    if (!exportRef.current) return; // ← 書き出し専用を使う
+    if (!exportRef.current) return;
 
-    // iOSのポップアップブロック対策：先に空タブを開いておく
-    let preOpenedWin = null;
-    if (isIOS || isIOSChrome) {
-      preOpenedWin = window.open("", "_blank");
-    }
-
-    const dataUrl = await toPng(exportRef.current, {
-      pixelRatio: 2,
-      cacheBust: true,
-      backgroundColor: "#fff", // 透過で色抜けするのを防止
-      filter: (node) =>
-        !(node.classList && node.classList.contains("no-export")),
-    });
-
-    // まずは Web Share Level 2（ファイル共有）が使えるならそれで保存
     try {
-      const blob = await (await fetch(dataUrl)).blob();
-      const file = new File([blob], "bingo.png", { type: "image/png" });
+      const blob = await toBlob(exportRef.current, {
+        pixelRatio: 2,
+        cacheBust: true,
+        backgroundColor: "#fff",
+        filter: (node) =>
+          !(node.classList && node.classList.contains("no-export")),
+      });
 
-      // 型チェック回避しつつ実体で判定
+      if (!blob) return;
+
+      const fileName = "bingo.png";
+
+      // 1. Web Share API (Level 2) Check - Useful for mobile sharing
+      const file = new File([blob], fileName, { type: "image/png" });
       /** @type {any} */ const nav = navigator;
-
       if (
-        typeof nav.share === "function" &&
-        typeof nav.canShare === "function" &&
+        nav.share &&
+        nav.canShare &&
         nav.canShare({ files: [file] })
       ) {
-        await nav.share({ files: [file], title: "Bingo" });
-        if (preOpenedWin && !preOpenedWin.closed) preOpenedWin.close();
+        await nav.share({ files: [file], title: "Bingo Card" });
         return;
       }
-    } catch {
-      // 共有できなければ下のフォールバックへ
-    }
 
-    // iOS系は <a download> が効かないことがある → 新規タブで開いて長押し保存してもらう
-    if (isIOS || isIOSChrome) {
-      const w = preOpenedWin || window.open("", "_blank");
-      if (w) {
-        w.document.write(`
-        <html><head>
-          <meta name="viewport" content="width=device-width,initial-scale=1">
-          <title>画像を保存</title>
-          <style>
-            body{margin:0;background:#111;display:flex;align-items:center;justify-content:center;min-height:100vh}
-            img{max-width:100%;height:auto}
-            .hint{position:fixed;left:0;right:0;bottom:12px;color:#fff;text-align:center;font:14px -apple-system,system-ui,Segoe UI}
-          </style>
-        </head>
-        <body>
-          <img id="img" alt="bingo"/>
-          <div class="hint">画像を<strong>長押し</strong>→「写真に追加」で保存</div>
-          <script>document.getElementById('img').src='${dataUrl}';</script>
-        </body></html>
-      `);
-        w.document.close();
-        return;
-      }
-    }
+      // 2. Standard Download (Supports modern iOS Safari 13+)
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      
+      // Cleanup
+      setTimeout(() => {
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }, 100);
 
-    // それ以外のブラウザは通常のダウンロードが有効
-    const a = document.createElement("a");
-    a.href = dataUrl;
-    a.download = "bingo.png";
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
+    } catch (err) {
+      console.error("Failed to generate or download image", err);
+      alert("画像の生成に失敗しました。");
+    }
   };
 
   const bgCss = bgCustom?.trim() ? bgCustom : bg;
